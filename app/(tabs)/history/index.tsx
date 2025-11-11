@@ -58,7 +58,11 @@ export default function History() {
 
     // Waits for API to respond or timeout
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(msg)), ms);
+      timer = setTimeout(() => {
+        setIsOnline(false);
+
+        reject(new Error(msg));
+      }, ms);
     });
 
     // if promise finish first, clear the timeout
@@ -153,7 +157,7 @@ export default function History() {
         }),
         10000
       );
-
+      setIsOnline(true);
       //res.data returns: {"exists": {"filename.csv": false, "filename2.csv": true}, "msg": "Success", "status": 200}
       return (res?.data?.exists ?? {}) as Record<string, boolean>;
     } catch (e) {
@@ -442,7 +446,7 @@ export default function History() {
           </Text>
         </View>
         <View style={styles.legendItem}>
-          <Ionicons name="cloud-offline" size={16} color="#ffffff" />
+          <Ionicons name="cloud-offline" size={16} color={C.text} />
           <Text style={[styles.legendText, { color: C.text }]}>
             {t("offline")}
           </Text>
@@ -482,7 +486,7 @@ export default function History() {
           onUploadPress();
         }}
         style={[styles.addButton, { backgroundColor: C.tint }]}>
-        <Ionicons name="add" size={30} color={"#FFFFFF"} />
+        <Ionicons name="add" size={30} color={C.text} />
       </TouchableOpacity>
     </SafeAreaView>
   );

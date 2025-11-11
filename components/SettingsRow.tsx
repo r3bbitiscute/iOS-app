@@ -92,6 +92,8 @@ function SettingsRow({
         <Switch
           value={!!switchValue}
           onValueChange={(next) => onToggleSwitch?.(next)}
+          trackColor={{ false: C.sub, true: C.sub }}
+          thumbColor={switchValue ? C.tint : C.tint}
         />
       ) : type === "link" ? (
         <Ionicons

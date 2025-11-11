@@ -67,7 +67,7 @@ export default function HistoryCard({
             : "cloud-offline"
         }
         size={18}
-        color={online ? (uploaded ? "#22c55e" : "#ef4444") : "#ffffff"} // green / red / white
+        color={online ? (uploaded ? "#22c55e" : "#ef4444") : C.text} // green / red / default text color
         accessibilityLabel={uploaded ? "Uploaded" : "Not uploaded"}
         testID={uploaded ? "status-uploaded" : "status-not-uploaded"}
       />
