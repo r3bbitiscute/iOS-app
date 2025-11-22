@@ -1,4 +1,7 @@
 {
+  "--general__": "一般",
+  "cancel": "取消",
+
   "--comment-navbar--": "菜单栏",
   "settings": "设置",
   "home": "主页",
@@ -19,6 +22,7 @@
   "support": "帮助",
   "faq": "常见问题",
   "signOut": "登出",
+  "appVersion": "APP版本",
 
   "--comment-profile--": "用户界面",
   "userInformation": "用户资料",
@@ -37,6 +41,7 @@
 
   "--comment-notification--": "通知页面",
   "reminders": "提醒",
+  "notifications": "讯息",
   "o2ringUploadReminder": "O2Ring 上传提醒",
   "o2ringUploadedEmailNotification": "O2Ring 上传确认邮件",
 

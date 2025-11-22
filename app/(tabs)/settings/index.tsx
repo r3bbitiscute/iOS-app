@@ -1,13 +1,20 @@
 import React, { useCallback, useMemo, useState } from "react";
-import SettingsList from "../../../components/SettingsList";
-import type { Card } from "../../../types/settings";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useTheme } from "../../../theme/ThemeProvider";
+import { Alert } from "react-native";
+import Constants from "expo-constants";
+import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import SettingsList from "../../../components/SettingsList";
+import { useTheme } from "../../../theme/ThemeProvider";
+import type { Card } from "../../../types/settings";
 
 export default function SettingsScreen() {
   const { colors: C, isDark, setMode } = useTheme();
   const { t } = useTranslation();
+  const router = useRouter();
+
+  const appVersion = Constants.expoConfig.version;
 
   const [switches, setSwitches] = useState<Record<string, boolean>>({
     dark: isDark,
@@ -23,6 +30,32 @@ export default function SettingsScreen() {
     },
     [setMode]
   );
+
+  /**
+   * Signout function
+   */
+  const signOut = async () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out?",
+      [
+        { text: t("cancel"), style: "cancel" },
+        {
+          text: t("signOut"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem("patientID"); // clear storage
+              router.replace("/Welcome"); // navigate to welcome
+            } catch (error) {
+              console.error("Error@signOut:", error);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
 
   const cards: Card[] = useMemo(
     () => [
@@ -101,6 +134,11 @@ export default function SettingsScreen() {
             icon: "help-circle-outline",
             route: "/(tabs)/settings/FAQ",
           },
+          {
+            id: "app-version",
+            type: "note",
+            title: `${t("appVersion")} ${appVersion}`,
+          },
         ],
       },
     ],
@@ -114,7 +152,7 @@ export default function SettingsScreen() {
       <SettingsList
         cards={cards}
         titleFlag={true}
-        ctaFlag={{ enabled: true, label: t("signOut") }}
+        ctaFlag={{ enabled: true, label: t("signOut"), onPress: signOut }}
         switchValues={switches}
         onToggleSwitch={handleToggle}
       />

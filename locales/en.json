@@ -1,4 +1,7 @@
 {
+  "--general__": "General",
+  "cancel": "Cancel",
+
   "--comment-navbar--": "Navigation Bar",
   "settings": "Settings",
   "home": "Home",
@@ -19,6 +22,7 @@
   "support": "Support",
   "faq": "FAQ",
   "signOut": "Sign out",
+  "appVersion": "App Version",
 
   "--comment-profile--": "Profile Page",
   "userInformation": "User Information",
@@ -37,6 +41,7 @@
 
   "--comment-notification--": "Notification Page",
   "reminders": "Reminders",
+  "notifications": "Notifications",
   "o2ringUploadReminder": "O2Ring Upload Reminder",
   "o2ringUploadedEmailNotification": "O2Ring Upload Confirmation Email",
 

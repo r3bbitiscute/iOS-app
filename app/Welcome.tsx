@@ -63,7 +63,7 @@ export default function Welcome() {
           />
 
           <TouchableOpacity onPress={savePatientID}>
-            <Ionicons
+            <Ionicons 
               name="arrow-forward-circle-outline"
               size={32}
               color={C.tint}

@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
-import { useTheme } from "../../../theme/ThemeProvider";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "../../../theme/ThemeProvider";
 
 export default function SettingsStack() {
   const { colors: C, fonts: F } = useTheme();
