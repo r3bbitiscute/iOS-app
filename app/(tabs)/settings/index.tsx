@@ -7,12 +7,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import SettingsList from "../../../components/SettingsList";
 import { useTheme } from "../../../theme/ThemeProvider";
+import { useO2Ring } from "../../../service/O2RingProvider";
 import type { Card } from "../../../types/settings";
 
 export default function SettingsScreen() {
   const { colors: C, isDark, setMode } = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const { disconnect } = useO2Ring();
 
   const appVersion = Constants.expoConfig.version;
 
@@ -42,14 +44,15 @@ export default function SettingsScreen() {
         { text: t("cancel"), style: "cancel" },
         {
           text: t("signOut"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await AsyncStorage.removeItem("patientID"); // clear storage
-              router.replace("/Welcome"); // navigate to welcome
-            } catch (error) {
-              console.error("Error@signOut:", error);
-            }
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await disconnect().catch(() => undefined);
+                await AsyncStorage.removeItem("patientID"); // clear storage
+                router.replace("/Welcome"); // navigate to welcome
+              } catch (error) {
+                console.error("Error@signOut:", error);
+              }
           },
         },
       ],

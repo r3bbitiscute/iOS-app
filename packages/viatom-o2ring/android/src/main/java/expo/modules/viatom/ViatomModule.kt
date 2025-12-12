@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Observer
@@ -104,28 +105,20 @@ class ViatomModule : Module() {
       true
     }
 
-    // 5) Connect by MAC + model (model is one of Bluetooth.MODEL_O2RING etc)
-    AsyncFunction("connect") { mac: String, model: Int ->
+    // 5) Connect by MAC + model
+    AsyncFunction("connect") { mac: String, _: Int ->
       ensureServiceInitialized()
       subscribeIfNeeded()
 
-      val act: Activity =
-              appContext.activityProvider?.currentActivity ?: throw CodedException("NO_ACTIVITY")
-
+      val act = appContext.activityProvider?.currentActivity ?: throw CodedException("NO_ACTIVITY")
       val bt = foundDevices[mac] ?: throw CodedException("DEVICE_NOT_FOUND")
 
-      // Set which device type we are talking to
-      BleServiceHelper.BleServiceHelper.setInterfaces(model)
+      BleServiceHelper.BleServiceHelper.setInterfaces(bt.model)
+      BleServiceHelper.BleServiceHelper.connect(act.applicationContext, bt.model, bt.device)
 
-      // Actually connect
-      BleServiceHelper.BleServiceHelper.connect(
-              act.applicationContext,
-              model,
-              bt.device // The Android BluetoothDevice
-      )
-
-      connectedModel = model
+      connectedModel = bt.model
       connectedMac = mac
+
       true
     }
 
@@ -159,7 +152,8 @@ class ViatomModule : Module() {
     // 8) Explicitly fetch device info (includes file list) after connecting
     AsyncFunction("getInfo") {
       val model = connectedModel ?: throw CodedException("NO_DEVICE_CONNECTED")
-      BleServiceHelper.BleServiceHelper.oxyGetInfo(model)
+
+      requestInfo(model)
       true
     }
 
@@ -201,11 +195,31 @@ class ViatomModule : Module() {
         )
       }
     }
+
+    // Device is ready to receive commands; trigger info fetch so history downloads can start.
+    addObserver("com.lepu.ble.device.ready", Any::class.java) {
+      val model = connectedModel
+      if (model != null) {
+        requestInfo(model)
+      }
+    }
   }
 
   // ------------- SUBSCRIBE TO OXY (O2Ring) EVENTS -------------
 
   private fun subscribeToOxyEvents() {
+    // 0. Sync device info event (sent right after connection)
+    addObserver(InterfaceEvent.Oxy.EventOxySyncDeviceInfo, InterfaceEvent::class.java) { evt ->
+      val model = evt.model
+      val data = evt.data as? Array<*>
+      Log.d("ViatomModule", "EventOxySyncDeviceInfo model=$model data=${data?.joinToString()}")
+
+      // When the SDK says "SetTIME"/ready, request full device info
+      if (model == connectedModel) {
+        requestInfo(model)
+      }
+    }
+
     // 1. Real-time param data (SpO2, PR, PI, motion)
     addObserver(InterfaceEvent.Oxy.EventOxyRtParamData, InterfaceEvent::class.java) { evt ->
       val d = evt.data as RtParam
@@ -224,12 +238,26 @@ class ViatomModule : Module() {
     // 2. Device info (battery, state, file list)
     addObserver(InterfaceEvent.Oxy.EventOxyInfo, InterfaceEvent::class.java) { evt ->
       val info = evt.data as DeviceInfo
-      val list = info.fileList.split(",").filter { it.isNotBlank() }
+      // Trim any whitespace so file names match what the device expects when requesting downloads.
+      val list = info.fileList.split(",").map { it.trim() }.filter { it.isNotBlank() }
 
-      emitter?.emit(
-              "onInfo",
-              mapOf("battery" to info.batteryValue, "state" to info.curState, "files" to list)
+      val batteryPercent = parseBatteryValue(info.batteryValue)
+      val payload =
+              mutableMapOf<String, Any?>(
+                      "state" to info.curState,
+                      "files" to list,
+                      "batteryState" to info.batteryState
+              )
+      if (batteryPercent != null) {
+        payload["battery"] = batteryPercent
+      }
+
+      Log.d(
+              "ViatomModule",
+              "EventOxyInfo batteryValue=${info.batteryValue} batteryState=${info.batteryState} state=${info.curState} files=${list.size}"
       )
+
+      emitter?.emit("onInfo", payload)
 
       // Optional: auto start realtime after info
       val model = connectedModel
@@ -327,6 +355,17 @@ class ViatomModule : Module() {
     return dataPoints[idx]
   }
 
+  // Battery values sometimes arrive as strings (e.g. "95" or "95%") so normalise to an Int.
+  private fun parseBatteryValue(raw: String?): Int? {
+    if (raw == null) return null
+    val trimmed = raw.trim()
+    trimmed.toIntOrNull()?.let {
+      return it
+    }
+    val digits = trimmed.filter { it.isDigit() || it == '-' }
+    return digits.toIntOrNull()
+  }
+
   private fun ensureServiceInitialized() {
     if (serviceInitialized) return
 
@@ -356,6 +395,19 @@ class ViatomModule : Module() {
                   Manifest.permission.ACCESS_FINE_LOCATION,
                   Manifest.permission.ACCESS_COARSE_LOCATION
           )
+
+  private fun requestInfo(model: Int) {
+    try {
+      BleServiceHelper.BleServiceHelper.oxyGetInfo(model)
+    } catch (e: Exception) {
+      // Some models (e.g. MODEL_O2RING) are not whitelisted in oxyGetInfo.
+      // Fall back to calling the underlying interface directly so history
+      // info/events still flow.
+      Log.w("ViatomModule", "oxyGetInfo failed, falling back to direct call", e)
+      val iface = BleServiceHelper.BleServiceHelper.getInterface(model) ?: throw e
+      iface.dobl()
+    }
+  }
 
   private fun <T> addObserver(key: String, clazz: Class<T>, block: (T) -> Unit) {
     val observer = Observer<T> { block(it) }

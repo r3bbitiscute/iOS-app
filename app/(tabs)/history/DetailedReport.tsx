@@ -27,6 +27,30 @@ const { height } = Dimensions.get("window");
  * Returns null if it can't parse.
  */
 function parseNonISOTime(timeStr: string): number | null {
+  // Most recent app downloads store timestamps as "YYYY-MM-DD HH:mm:ss"
+  {
+    const m = timeStr.match(
+      /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/
+    );
+    if (m) {
+      const [, yyyyStr, monStr, ddStr, hhStr, mmStr, ssStr] = m;
+      const yyyy = Number(yyyyStr);
+      const mon = Number(monStr) - 1; // JS months are 0-based
+      const dd = Number(ddStr);
+      const hh = Number(hhStr);
+      const min = Number(mmStr);
+      const ss = Number(ssStr);
+      const ms = new Date(yyyy, mon, dd, hh, min, ss).getTime();
+      if (!Number.isNaN(ms)) return ms;
+    }
+  }
+
+  // ISO-ish formats (e.g. 2025-10-21T01:34:42Z or with offset)
+  {
+    const iso = Date.parse(timeStr);
+    if (!Number.isNaN(iso)) return iso;
+  }
+
   // Try "HH:MM:SS Mon DD YYYY"
   {
     const months: Record<string, number> = {

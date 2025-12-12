@@ -1,11 +1,20 @@
-import React, { useCallback, useEffect } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Platform,
+  Pressable,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as NavigationBar from "expo-navigation-bar";
@@ -13,7 +22,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useTheme } from "../../../theme/ThemeProvider";
 import { useTranslation } from "react-i18next";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useO2Ring } from "../../../service/O2RingProvider";
+import { DeviceItem, useO2Ring } from "../../../service/O2RingProvider";
 
 export default function Home() {
   const { colors: C, isDark, fonts: F } = useTheme();
@@ -21,13 +30,37 @@ export default function Home() {
   const router = useRouter();
   const {
     connectedDevice,
+    knownDevices,
     spo2,
     pr,
+    battery,
+    batteryState,
     disconnect,
     refreshRealtime,
     isRealtimeReady,
-  } =
-    useO2Ring();
+    startScan,
+    stopScan,
+    connectToDevice,
+    forgetDevice,
+    connecting,
+    devices,
+    isScanning,
+  } = useO2Ring();
+
+  const [knownDeviceMenuVisible, setKnownDeviceMenuVisible] = useState(false);
+  const menuScanWasActiveRef = useRef(false);
+
+  // Keep latest refreshRealtime without forcing the focus effect to re-run on every reading
+  const refreshRealtimeRef = useRef(refreshRealtime);
+  useEffect(() => {
+    refreshRealtimeRef.current = refreshRealtime;
+  }, [refreshRealtime]);
+
+  useEffect(() => {
+    if (!connectedDevice) {
+      setKnownDeviceMenuVisible(false);
+    }
+  }, [connectedDevice]);
 
   useEffect(() => {
     StatusBar.setBarStyle(isDark ? "light-content" : "dark-content", true);
@@ -43,47 +76,303 @@ export default function Home() {
     await disconnect();
   };
 
+  const handleKnownDeviceSelect = useCallback(
+    async (device: DeviceItem) => {
+      setKnownDeviceMenuVisible(false);
+      if (connectedDevice?.mac === device.mac) return;
+      await connectToDevice(device);
+    },
+    [connectToDevice, connectedDevice]
+  );
+
   const handleScan = () => {
     router.push("/(tabs)/home/Scan");
   };
+
+  // When opening the known devices menu, run a scan so we can flag online/offline status.
+  useEffect(() => {
+    if (!knownDeviceMenuVisible) return;
+
+    menuScanWasActiveRef.current = isScanning;
+    startScan().catch(() => null);
+
+    return () => {
+      if (!menuScanWasActiveRef.current) {
+        stopScan();
+      }
+    };
+  }, [knownDeviceMenuVisible, isScanning, startScan, stopScan]);
+
+  const knownAvailableMacs = useMemo(
+    () => new Set(devices.map((d) => d.mac)),
+    [devices]
+  );
 
   /**
    * Display values from O2 Ring live with fallback
    */
   useFocusEffect(
     useCallback(() => {
-      if (!connectedDevice || !isRealtimeReady) return;
+      // Start or stop scanning based on connection state; avoid depending on isScanning to prevent setState loops
+      if (!connectedDevice) {
+        startScan();
+      } else {
+        stopScan();
+      }
+
+      if (!connectedDevice || !isRealtimeReady) {
+        return () => {
+          stopScan();
+        };
+      }
 
       // call once immediately when screen is focused
-      refreshRealtime();
+      refreshRealtimeRef.current();
 
       // then keep calling every 1 second
       const intervalId = setInterval(() => {
-        refreshRealtime();
+        refreshRealtimeRef.current();
       }, 1000);
 
       // clean up when leaving the screen or losing focus
       return () => {
         clearInterval(intervalId);
+        stopScan();
       };
-    }, [connectedDevice, isRealtimeReady, refreshRealtime])
+    }, [connectedDevice, isRealtimeReady, startScan, stopScan])
   );
 
   const displaySpo2 =
     spo2 == null || spo2 < 20 || spo2 > 100 ? "--" : `${spo2}`;
 
   const displayPr = pr == null || pr < 20 || pr > 250 ? "--" : `${pr}`;
+  const displayBattery =
+    battery == null || battery < 0 || battery > 100 ? "--" : `${battery}%`;
+  const batteryIconName = useMemo(() => {
+    switch (batteryState) {
+      case 1:
+        return "battery-charging";
+      case 2:
+        return "battery-check";
+      default:
+        return "battery";
+    }
+  }, [batteryState]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+      {knownDeviceMenuVisible && (
+        <SafeAreaView
+          style={styles.knownMenuContainer}
+          pointerEvents="box-none">
+          <Pressable
+            style={styles.knownMenuBackdrop}
+            onPress={() => setKnownDeviceMenuVisible(false)}
+          />
+          <View
+            style={[
+              styles.knownMenuCard,
+              {
+                backgroundColor: C.bg2,
+                borderColor: C.border,
+                shadowColor: C.shadow,
+              },
+            ]}>
+            <View style={styles.knownMenuHeader}>
+              <Text style={[styles.knownMenuTitle, { color: C.text }]}>
+                {t("chooseDevice")}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setKnownDeviceMenuVisible(false)}
+                hitSlop={8}>
+                <MaterialCommunityIcons name="close" size={20} color={C.sub} />
+              </TouchableOpacity>
+            </View>
+
+            {knownDevices.length === 0 ? (
+              <Text style={{ color: C.sub }}>{t("noKnownDevices")}</Text>
+            ) : (
+              <>
+                <View style={styles.knownLegendContainer}>
+                  <View style={styles.knownLegendItem}>
+                    <MaterialCommunityIcons
+                      name="check-circle"
+                      size={18}
+                      color={C.tint}
+                    />
+                    <Text style={[styles.knownLegendText, { color: C.text }]}>
+                      {t("connected")}
+                    </Text>
+                  </View>
+                  <View style={styles.knownLegendItem}>
+                    <MaterialCommunityIcons
+                      name="bluetooth-connect"
+                      size={18}
+                      color={C.tint}
+                    />
+                    <Text style={[styles.knownLegendText, { color: C.text }]}>
+                      {t("notConnected")}
+                    </Text>
+                  </View>
+                  <View style={styles.knownLegendItem}>
+                    <MaterialCommunityIcons
+                      name="bluetooth-off"
+                      size={18}
+                      color={C.danger}
+                    />
+                    <Text style={[styles.knownLegendText, { color: C.text }]}>
+                      {t("offline")}
+                    </Text>
+                  </View>
+                </View>
+
+                {knownDevices.map((device) => (
+                  <TouchableOpacity
+                    key={device.mac}
+                    style={[
+                      styles.knownMenuItem,
+                      { borderColor: C.border },
+                      connecting ? styles.knownMenuItemDisabled : null,
+                    ]}
+                    activeOpacity={0.8}
+                    disabled={connecting}
+                    onPress={() => handleKnownDeviceSelect(device)}
+                    onLongPress={() => {
+                      Alert.alert(
+                        t("confirmDeleteTitle"),
+                        t("deleteKnownDeviceMessage"),
+                        [
+                          {
+                            text: t("cancel"),
+                            style: "cancel",
+                          },
+                          {
+                            text: t("delete"),
+                            style: "destructive",
+                            onPress: () => {
+                              (async () => {
+                                if (connectedDevice?.mac === device.mac) {
+                                  await disconnect();
+                                }
+                                forgetDevice(device);
+                              })();
+                              setKnownDeviceMenuVisible(false);
+                            },
+                          },
+                        ]
+                      );
+                    }}>
+                    <View style={{ flex: 1, flexDirection: "row" }}>
+                      <Image
+                        source={require("../../../assets/images/O2RingBGR.png")}
+                        style={{ width: 40, height: 40, marginRight: 8 }}
+                        resizeMode="contain"
+                      />
+                      <View>
+                        <Text
+                          style={[
+                            styles.knownMenuItemTitle,
+                            { color: C.text },
+                          ]}>
+                          {device.name}
+                        </Text>
+                        <Text
+                          style={[styles.knownMenuItemMac, { color: C.sub }]}>
+                          {device.mac}
+                        </Text>
+                      </View>
+                    </View>
+                    {connectedDevice?.mac === device.mac ? (
+                      <MaterialCommunityIcons
+                        name="check-circle"
+                        size={22}
+                        color={C.tint}
+                      />
+                    ) : knownAvailableMacs.has(device.mac) ? (
+                      <MaterialCommunityIcons
+                        name="bluetooth-connect"
+                        size={22}
+                        color={C.tint}
+                      />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name="bluetooth-off"
+                        size={22}
+                        color={C.danger}
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+          </View>
+        </SafeAreaView>
+      )}
+
       {connectedDevice ? (
         // Connected view
         <View>
           <View style={styles.titleContainer}>
-            <Text style={[F.title, { color: C.text }]}>{t("home")}</Text>
-            <Text style={{ color: C.text, marginBottom: 16 }}>
-              {t("connectedTo")} : {connectedDevice.name}
-            </Text>
+            <View style={styles.titleRow}>
+              <View style={styles.titleLeft}>
+                <Pressable
+                  style={{
+                    borderRadius: 16,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    padding: 8,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    position: "relative",
+                  }}
+                  onPress={() =>
+                    setKnownDeviceMenuVisible(!knownDeviceMenuVisible)
+                  }>
+                  <Image
+                    source={require("../../../assets/images/O2RingBGR.png")}
+                    resizeMode="contain"
+                    style={{
+                      width: 56,
+                      height: 56,
+                      marginRight: 0,
+                    }}
+                  />
+                  <View style={[styles.badge, { backgroundColor: C.tint }]}>
+                    <MaterialCommunityIcons
+                      name="swap-horizontal"
+                      size={16}
+                      color={C.white}
+                    />
+                  </View>
+                </Pressable>
+                <View style={{ marginLeft: 16 }}>
+                  <Text style={[F.buttonText, { color: C.text }]}>
+                    {connectedDevice.name}
+                  </Text>
+                  <Text style={[F.buttonText, { color: C.text }]}>
+                    {t("connected")}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.batteryChip,
+                  { borderColor: C.border, backgroundColor: C.bg2 },
+                ]}>
+                <MaterialCommunityIcons
+                  name={batteryIconName}
+                  size={22}
+                  color={C.text}
+                />
+                <Text
+                  style={[
+                    styles.batteryText,
+                    { color: C.tint },
+                  ]}>
+                  {displayBattery}
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* Live Display */}
@@ -138,6 +427,25 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   titleContainer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  titleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+  },
+
+  badge: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    borderRadius: 10,
+    padding: 4,
+  },
+
   centerTop: {
     flex: 1,
     alignItems: "center",
@@ -162,6 +470,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  batteryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  batteryText: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
   card: {
     padding: 16,
     borderRadius: 12,
@@ -175,5 +496,77 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 32,
     fontWeight: "800",
+  },
+
+  knownMenuContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    justifyContent: "flex-start",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  knownMenuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  knownMenuCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    padding: 12,
+    width: "100%",
+    maxHeight: 320,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  knownMenuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  knownMenuTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  knownMenuItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  knownMenuItemTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  knownMenuItemMac: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  knownMenuItemDisabled: {
+    opacity: 0.6,
+  },
+  knownLegendContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 6,
+  },
+  knownLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  knownLegendText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

@@ -5,7 +5,7 @@
     "scheme": "sleep-easy-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/sleepeasy-logo.png",
+    "icon": "./assets/sleepeasylogo-android.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -24,7 +24,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/sleepeasy-logo.png",
+        "foregroundImage": "./assets/sleepeasylogo-android.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../theme/ThemeProvider";
 import { DeviceItem, useO2Ring } from "../../../service/O2RingProvider";
@@ -44,7 +44,8 @@ function DeviceRow({ item, onPress, disabled, connecting }: DeviceRowProps) {
       disabled={disabled}>
       <Image
         source={require("../../../assets/images/O2RingBGR.png")}
-        style={{ width: 40, height: 40, marginRight: 12 }}
+        style={{ width: 40, height: 40, marginRight: 8 }}
+        resizeMode="contain"
       />
       <View style={{ flex: 1 }}>
         <Text style={[F.text, { color: C.white }]}>{item.name}</Text>
@@ -77,13 +78,16 @@ export default function ScanDeviceScreen() {
     clearDevices,
   } = useO2Ring();
 
-  useEffect(() => {
-    clearDevices();
-    startScan();
-    return () => {
-      stopScan();
-    };
-  }, [clearDevices, startScan, stopScan]);
+  // Ensure scanning starts whenever this screen is focused (and stops on blur)
+  useFocusEffect(
+    useCallback(() => {
+      clearDevices();
+      startScan();
+      return () => {
+        stopScan();
+      };
+    }, [clearDevices, startScan, stopScan])
+  );
 
   const hasDevices = useMemo(() => devices.length > 0, [devices]);
 

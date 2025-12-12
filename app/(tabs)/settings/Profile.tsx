@@ -18,6 +18,15 @@ export default function Profile() {
 
   const [formValues, setFormValues] = useState<{ [key: string]: string }>({});
 
+  const mapPatient = useCallback((p: any) => {
+    return {
+      patientName: p?.name ?? "",
+      dob: p?.birthdate ?? "",
+      contact: p?.telephone_number ?? "",
+      email: p?.email ?? "",
+    };
+  }, []);
+
   /**
    * Load stored profile data when screen is focused
    */
@@ -26,13 +35,6 @@ export default function Profile() {
       let isActive = true; // avoid setState after unmount
 
       // Helper to map API patient object to form values
-      const mapPatient = (p: any) => ({
-        patientName: p?.name ?? "",
-        dob: p?.birthdate ?? "",
-        contact: p?.telephone_number ?? "",
-        email: p?.email ?? "",
-      });
-
       // Load patient information from AsyncStorage cache
       const loadFromCache = async () => {
         const [storedID, patientData] = await Promise.all([
@@ -117,7 +119,7 @@ export default function Profile() {
       return () => {
         isActive = false;
       };
-    }, [])
+    }, [mapPatient])
   );
 
   /**
@@ -134,14 +136,42 @@ export default function Profile() {
    */
   const onSaveProfile = async () => {
     try {
-      // Only for testing purposes - in real app, ID will not be editable
-      const id = formValues["patient-id"];
-      if (id) {
-        await AsyncStorage.setItem("patientID", id);
+      const id = (formValues["patient-id"] ?? "").trim();
+      if (!id) {
+        Alert.alert(t("error"), "Missing patient ID.");
+        return;
       }
+
+      const payload = new FormData();
+      payload.append("patient_id", id);
+      payload.append("name", formValues.patientName ?? "");
+      payload.append("birthdate", formValues.dob ?? "");
+      payload.append("telephone_number", formValues.contact ?? "");
+      payload.append("email", formValues.email ?? "");
+
+      const res = await api.post(
+        `sleep_easy_app/update_patient_details_with_id.php`,
+        payload,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+
+      const ok = res?.data?.status === 200;
+      const patient = res?.data?.patient;
+
+      if (patient) {
+        await AsyncStorage.setItem("patientData", JSON.stringify(patient));
+        setFormValues((prev) => ({ ...prev, ...mapPatient(patient) }));
+      }
+
+      if (!ok) {
+        throw new Error(res?.data?.msg || "Save failed");
+      }
+
+      await AsyncStorage.setItem("patientID", id);
       Alert.alert(t("profileSaved"), t("profileSavedMessage"));
     } catch (error) {
       console.error("Error@Profile.tsx/onSaveProfile:", error);
+      Alert.alert(t("error"), "Could not save profile. Please try again.");
     }
   };
 

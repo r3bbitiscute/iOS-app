@@ -81,13 +81,6 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
-repositories {
-    flatDir {
-        dirs 'libs'
-    }
-}
-
-
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -191,6 +184,4 @@ dependencies {
     } else {
         implementation jscFlavor
     }
-
-    implementation(name:"lepu-blepro-1.0.7", ext:"aar")
 }

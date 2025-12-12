@@ -48,8 +48,9 @@ export type RealtimeEvent = {
 };
 
 export type InfoEvent = {
-  battery: number;
-  state: number;
+  battery?: number | null;
+  batteryState?: number | null;
+  state?: number | null;
   files: string[];
 };
 

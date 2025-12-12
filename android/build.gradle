@@ -17,9 +17,8 @@ allprojects {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
-    flatDir {
-            dirs "$rootDir/app/libs"
-        }
+
+    flatDir { dirs "$rootDir/../packages/viatom-o2ring/android/libs" }
   }
 }
 

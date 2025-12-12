@@ -271,10 +271,12 @@ final class ViatomManager: NSObject, CBCentralManagerDelegate, VTO2CommunicateDe
 
     let battery = parseInteger(from: info.curBattery) ?? 0
     let state = parseInteger(from: info.curState) ?? 0
+    let batteryState = parseInteger(from: info.curBatState)
 
     emit("onInfo", [
       "battery": battery,
       "state": state,
+      "batteryState": batteryState,
       "files": files
     ])
   }

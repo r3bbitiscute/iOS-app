@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +27,7 @@ import {
 } from "../../../service/History";
 import HistoryCard from "../../../components/HistoryCard";
 import { useTheme } from "../../../theme/ThemeProvider";
+import { useO2Ring } from "../../../service/O2RingProvider";
 
 const rawBase = __DEV__ ? API_DEV : API_PROD;
 const baseURL = rawBase?.replace(/\/+$/, "");
@@ -33,6 +35,7 @@ const baseURL = rawBase?.replace(/\/+$/, "");
 export default function History() {
   const { colors: C, fonts: F } = useTheme();
   const { t } = useTranslation();
+  const { requestHistorySync } = useO2Ring();
 
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const isUploading = useRef(false);
@@ -42,6 +45,7 @@ export default function History() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(new Date());
   const [patientID, setPatientID] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   //-------------------------
   // NETWORK HELPER
@@ -233,6 +237,16 @@ export default function History() {
     }, [loadHistory])
   );
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadHistory();
+      await requestHistorySync();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadHistory, requestHistorySync]);
+
   /**
    * Format file name (for display not actually renaming)
    */
@@ -393,6 +407,9 @@ export default function History() {
 
       {/* History Cards */}
       <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
         contentContainerStyle={[styles.cardsContainer, { paddingBottom: 24 }]}>
         {history.length === 0 ? (
           <Text style={{ color: C.sub, textAlign: "center", marginTop: 24 }}>
