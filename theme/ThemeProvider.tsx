@@ -88,7 +88,7 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({
       card: isDark ? "#161616" : "#F7F7F9",
       border: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.5)",
       shadow: isDark ? "transparent" : "#00000020",
-      tint: "#5B61FF", // primary action color
+      tint: "#4FA9E6", // primary action color
       danger: "#D64545", // destructive action color
       white: "#FFFFFF",
     }),
