@@ -118,8 +118,8 @@ export default function ShareScreen() {
       Alert.alert("Success", "File saved and uploaded for this patient.");
       // clear share intent so it doesn't repeat if user comes back
       resetShareIntent();
-      // send the user back to the main home tab after a successful upload
-      router.replace("/(tabs)/home");
+      // send the user back to the main history tab after a successful upload
+      router.replace("/(tabs)/history");
     } catch (e: any) {
       console.error("Error@Share.tsx:", e?.message ?? e);
       Alert.alert(

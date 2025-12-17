@@ -42,6 +42,8 @@ export default function Home() {
     stopScan,
     connectToDevice,
     forgetDevice,
+    offlineDevice,
+    clearOfflineDevice,
     connecting,
     devices,
     isScanning,
@@ -61,6 +63,12 @@ export default function Home() {
       setKnownDeviceMenuVisible(false);
     }
   }, [connectedDevice]);
+
+  useEffect(() => {
+    if (connectedDevice) {
+      clearOfflineDevice();
+    }
+  }, [clearOfflineDevice, connectedDevice]);
 
   useEffect(() => {
     StatusBar.setBarStyle(isDark ? "light-content" : "dark-content", true);
@@ -86,6 +94,7 @@ export default function Home() {
   );
 
   const handleScan = () => {
+    clearOfflineDevice();
     router.push("/(tabs)/home/Scan");
   };
 
@@ -425,6 +434,42 @@ export default function Home() {
       ) : (
         // Not connected view
         <View style={styles.centerTop}>
+          {offlineDevice && (
+            <View
+              style={[
+                styles.offlineBanner,
+                { backgroundColor: C.bg2, borderColor: C.border },
+              ]}>
+              <MaterialCommunityIcons
+                name="alert-circle"
+                size={28}
+                color={C.danger}
+              />
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text
+                  style={[styles.offlineTitle, { color: C.text }]}
+                  numberOfLines={1}>
+                  {offlineDevice.name}
+                </Text>
+                <Text style={[styles.offlineText, { color: C.sub }]}>
+                  {t("offline")}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  clearOfflineDevice();
+                  handleScan();
+                }}
+                hitSlop={8}>
+                <MaterialCommunityIcons
+                  name="refresh"
+                  size={20}
+                  color={C.text}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+
           <MaterialCommunityIcons
             name="bluetooth-off"
             size={80}
@@ -472,6 +517,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 8,
+  },
+  offlineBanner: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+  },
+  offlineTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  offlineText: {
+    fontSize: 12,
+    marginTop: 2,
   },
   title: {
     fontSize: 20,

@@ -113,10 +113,25 @@ function InnerLayout() {
         <O2RingProvider>
           <DownloadHistoryModal />
           <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="(tabs)"
+              options={{ headerShown: false, animation: "fade" }}
+            />
             <Stack.Screen
               name="Welcome"
-              options={{ headerShown: false, gestureEnabled: false }}
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+                animation: "fade",
+              }}
+            />
+            <Stack.Screen
+              name="WelcomeBack"
+              options={{
+                headerShown: false,
+                gestureEnabled: false,
+                animation: "fade",
+              }}
             />
             <Stack.Screen name="Share" options={{ headerShown: false }} />
           </Stack>

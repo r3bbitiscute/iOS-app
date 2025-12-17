@@ -31,7 +31,7 @@ export default function Index() {
         return;
       }
 
-      router.replace("/(tabs)/home");
+      router.replace("/WelcomeBack");
     };
 
     checkAndNavigate();

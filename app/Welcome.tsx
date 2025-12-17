@@ -23,7 +23,7 @@ export default function Welcome() {
   const savePatientID = async () => {
     try {
       await AsyncStorage.setItem("patientID", patientID);
-      router.replace("/(tabs)/home");
+      router.replace("/(tabs)/history");
     } catch (error) {
       console.error("Error@Welcome.tsx:", error);
     }

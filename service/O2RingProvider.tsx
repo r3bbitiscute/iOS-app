@@ -36,6 +36,7 @@ type O2RingContextValue = {
   battery: number | null;
   batteryState: number | null;
   connectedDevice: DeviceItem | null;
+  offlineDevice: DeviceItem | null;
   knownDevices: DeviceItem[];
   spo2: number | null;
   pr: number | null;
@@ -51,6 +52,7 @@ type O2RingContextValue = {
   forgetDevice: (device: DeviceItem) => void;
   tempForgetDevice: (device: DeviceItem) => void;
   disconnect: () => Promise<void>;
+  clearOfflineDevice: () => void;
   clearDevices: () => void;
   refreshRealtime: () => Promise<boolean>;
   requestHistorySync: () => Promise<boolean>;
@@ -67,6 +69,7 @@ export function O2RingProvider({ children }: { children: React.ReactNode }) {
   const [connectedDevice, setConnectedDevice] = useState<DeviceItem | null>(
     null
   );
+  const [offlineDevice, setOfflineDevice] = useState<DeviceItem | null>(null);
   const [knownDevices, setKnownDevices] = useState<DeviceItem[]>([]);
   const [serviceReady, setServiceReady] = useState(
     Platform.OS === "android" ? true : false
@@ -93,6 +96,7 @@ export function O2RingProvider({ children }: { children: React.ReactNode }) {
   const connectedDeviceRef = React.useRef<DeviceItem | null>(null);
   const serviceReadyRef = React.useRef(serviceReady);
   const infoRetryCount = React.useRef(0);
+  const intentionalDisconnectRef = React.useRef(false);
   const syncingPatientId = React.useRef<Promise<string | null> | null>(null);
   const readQueue = React.useRef<string[]>([]);
   const currentReading = React.useRef<string | null>(null);
@@ -614,6 +618,14 @@ const processReadQueue = useCallback(() => {
       });
 
       subDisc = O2Ring.addDisconnectedListener(() => {
+        const prevDevice = connectedDeviceRef.current;
+        const wasIntentional = intentionalDisconnectRef.current;
+        if (!wasIntentional && prevDevice) {
+          setOfflineDevice(prevDevice);
+        } else {
+          setOfflineDevice(null);
+        }
+        intentionalDisconnectRef.current = false;
         setConnectedDevice(null);
         setSpo2(null);
         setPr(null);
@@ -869,35 +881,38 @@ const processReadQueue = useCallback(() => {
    * @param device Device to connect to
    * @returns Whether realtime streaming started successfully
    */
-  const connectToDevice = useCallback(
-    async (device: DeviceItem) => {
-      // Any manual connect should re-enable auto-reconnect until the user explicitly disconnects again.
-      autoReconnectEnabled.current = true;
-      setConnecting(true);
-      try {
-        await O2Ring.stopScan().catch(() => undefined);
-        setIsScanning(false);
+    const connectToDevice = useCallback(
+      async (device: DeviceItem) => {
+        // Any manual connect should re-enable auto-reconnect until the user explicitly disconnects again.
+        autoReconnectEnabled.current = true;
+        setConnecting(true);
+        try {
+          await O2Ring.stopScan().catch(() => undefined);
+          setIsScanning(false);
 
-        const current = connectedDeviceRef.current;
-        const switchingDevice = current?.mac && current.mac !== device.mac;
+          const current = connectedDeviceRef.current;
+          const switchingDevice = current?.mac && current.mac !== device.mac;
 
-        if (switchingDevice) {
-          try {
-            await O2Ring.disconnect();
-          } catch (err) {
-            console.warn(
-              "Error@O2RingProvider.tsx/connectToDevice pre-disconnect: ",
-              err
-            );
+          if (switchingDevice) {
+            try {
+              intentionalDisconnectRef.current = true;
+              await O2Ring.disconnect();
+            } catch (err) {
+              console.warn(
+                "Error@O2RingProvider.tsx/connectToDevice pre-disconnect: ",
+                err
+              );
+              intentionalDisconnectRef.current = false;
+            }
           }
-        }
 
-        await syncPatientId();
+          await syncPatientId();
+          setOfflineDevice(null);
 
-        readQueue.current = [];
-        currentReading.current = null;
-        readAttempts.current.clear();
-        setSpo2(null);
+          readQueue.current = [];
+          currentReading.current = null;
+          readAttempts.current.clear();
+          setSpo2(null);
         setPr(null);
         setBattery(null);
         setRealtimeUpdatedAt(null);
@@ -930,9 +945,11 @@ const processReadQueue = useCallback(() => {
    */
   const disconnect = useCallback(async () => {
     try {
+      intentionalDisconnectRef.current = true;
       await O2Ring.disconnect();
     } catch (e) {
       console.warn("Error@O2RingProvider.tsx/disconnect: ", e);
+      intentionalDisconnectRef.current = false;
     }
     // Disable auto-reconnect after an explicit user disconnect.
     autoReconnectEnabled.current = false;
@@ -959,6 +976,7 @@ const processReadQueue = useCallback(() => {
     setDownloadCounts({ total: 0, completed: 0 });
     setServiceReady(Platform.OS === "android");
     setIosRealtimeReady(Platform.OS === "android");
+    setOfflineDevice(null);
   }, []);
 
   /**
@@ -983,6 +1001,10 @@ const processReadQueue = useCallback(() => {
   }, [iosRealtimeReady, realtimeUpdatedAt, startRealtimeStream]);
 
   const clearDevices = useCallback(() => setDevices([]), []);
+  const clearOfflineDevice = useCallback(
+    () => setOfflineDevice(null),
+    []
+  );
 
   /**
    * Manually trigger a history sync (pull-to-refresh in History screen)
@@ -1089,6 +1111,7 @@ const processReadQueue = useCallback(() => {
       battery,
       batteryState,
       connectedDevice,
+      offlineDevice,
       knownDevices,
       spo2,
       pr,
@@ -1104,6 +1127,7 @@ const processReadQueue = useCallback(() => {
       forgetDevice,
       tempForgetDevice,
       disconnect,
+      clearOfflineDevice,
       clearDevices,
       refreshRealtime,
       requestHistorySync,
@@ -1119,6 +1143,7 @@ const processReadQueue = useCallback(() => {
       battery,
       batteryState,
       connectedDevice,
+      offlineDevice,
       knownDevices,
       spo2,
       pr,
@@ -1134,6 +1159,7 @@ const processReadQueue = useCallback(() => {
       forgetDevice,
       tempForgetDevice,
       disconnect,
+      clearOfflineDevice,
       clearDevices,
       refreshRealtime,
       requestHistorySync,

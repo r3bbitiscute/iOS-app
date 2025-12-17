@@ -31,6 +31,7 @@ export default function Layout() {
 
   return (
     <Tabs
+      initialRouteName="history"
       screenOptions={({ route }) => {
         const baseRaw = route.name.split("/")[0];
         const base = baseRaw.toLowerCase();
