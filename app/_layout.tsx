@@ -133,6 +133,13 @@ function InnerLayout() {
                 animation: "fade",
               }}
             />
+            <Stack.Screen
+              name="CreateAccount"
+              options={{
+                headerShown: false,
+                animation: "fade",
+              }}
+            />
             <Stack.Screen name="Share" options={{ headerShown: false }} />
           </Stack>
         </O2RingProvider>

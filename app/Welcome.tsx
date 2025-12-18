@@ -7,29 +7,61 @@ import {
   Linking,
   TextInput,
   Image,
+  Alert,
+  Platform,
 } from "react-native";
 import { useTheme } from "../theme/ThemeProvider";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { loginWithEmailAndPassword } from "../service/Welcome";
 
 export default function Welcome() {
   const { colors: C, fonts: F, isDark } = useTheme();
 
-  const [patientID, setPatientID] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const bannerSource = isDark
     ? require("../assets/sleepeasylogo-banner-darkMode.png")
     : require("../assets/sleepeasylogo-banner.png");
 
-  const savePatientID = async () => {
+  const canSubmit =
+    email.trim().length > 0 && password.length > 0 && !isSubmitting;
+
+  const saveLogin = async () => {
+    if (!canSubmit) return;
     try {
-      await AsyncStorage.setItem("patientID", patientID);
+      setIsSubmitting(true);
+      const result = await loginWithEmailAndPassword({
+        email: email.trim(),
+        password,
+      });
+
+      const patientId = result?.patient?.patient_id;
+
+      if (!patientId) {
+        throw new Error("No patient ID returned from server.");
+      }
+
+      await AsyncStorage.setItem("patientID", String(patientId));
+      if (result?.patient) {
+        await AsyncStorage.setItem(
+          "patientData",
+          JSON.stringify(result.patient)
+        );
+      }
+
       router.replace("/(tabs)/history");
     } catch (error) {
       console.error("Error@Welcome.tsx:", error);
+      const message =
+        error instanceof Error ? error.message : "Login failed. Try again.";
+      Alert.alert("Login failed", message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -51,7 +83,7 @@ export default function Welcome() {
           Welcome to Sleep Easy
         </Text>
         <Text style={[{ color: C.text, ...F.sectionLabel }]}>
-          Please enter your Patient ID to continue.
+          Please log in with your email and password to continue.
         </Text>
         <View
           style={[
@@ -62,35 +94,68 @@ export default function Welcome() {
             },
           ]}>
           <TextInput
-            value={patientID}
-            onChangeText={setPatientID}
-            placeholder={"Patient ID"}
+            value={email}
+            onChangeText={setEmail}
+            placeholder={"Email"}
             placeholderTextColor={C.sub}
             autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType="emailAddress"
             underlineColorAndroid={"transparent"}
             style={{ color: C.text, flex: 1 }}
           />
-
-          <TouchableOpacity onPress={savePatientID}>
-            <Ionicons
-              name="arrow-forward-circle-outline"
-              size={32}
-              color={C.tint}
-            />
-          </TouchableOpacity>
         </View>
+        <View
+          style={[
+            styles.formRow,
+            {
+              backgroundColor: C.bg,
+              borderColor: C.border,
+            },
+          ]}>
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder={"Password"}
+            placeholderTextColor={C.sub}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            textContentType="password"
+            underlineColorAndroid={"transparent"}
+            style={{ color: C.text, flex: 1 }}
+          />
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.button,
+            {
+              backgroundColor: C.tint,
+              marginTop: 8,
+              opacity: canSubmit ? 1 : 0.5,
+            },
+            Platform.select({ android: { elevation: 1.5 } }),
+          ]}
+          activeOpacity={0.85}
+          disabled={!canSubmit}
+          onPress={saveLogin}>
+          <Text style={[{ ...F.buttonText }]}>
+            {isSubmitting ? "Logging in..." : "Log In"}
+          </Text>
+        </TouchableOpacity>
       </View>
       <View style={styles.supportContainer}>
         <Text
           style={[{ color: C.text, ...F.sectionLabel, textAlign: "center" }]}>
-          If you do not know your Patient ID.
+          Don't have an account?
         </Text>
         <TouchableOpacity
-          style={[styles.button, { backgroundColor: C.tint, marginTop: 8 }]}
+          style={[styles.buttonSecondary, { borderColor: C.border }]}
           activeOpacity={0.85}
-          onPress={() => Linking.openURL("https://wa.me/+6587884738")}>
-          <Text style={[{ ...F.buttonText, fontSize: 14 }]}>
-            Contact Us Here
+          onPress={() => router.push("/CreateAccount")}>
+          <Text style={[{ ...F.buttonText, fontSize: 14, color: C.text }]}>
+            Create Account
           </Text>
         </TouchableOpacity>
         <Text
@@ -103,7 +168,7 @@ export default function Welcome() {
             },
           ]}>
           Want to know more about us?
-        </Text>{" "}
+        </Text>
         <TouchableOpacity
           style={[styles.buttonSecondary, { borderColor: C.border }]}
           activeOpacity={0.85}
@@ -138,7 +203,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    marginVertical: 12,
+    marginVertical: 10,
   },
   supportContainer: {
     flexDirection: "column",
@@ -155,10 +220,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   button: {
-    height: 40,
+    height: 52,
     borderRadius: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
+    width: "100%",
   },
 });

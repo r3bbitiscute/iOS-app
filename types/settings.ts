@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import type { TextInputProps } from "react-native";
 
 export type RowType =
   | "switch"
@@ -6,7 +7,8 @@ export type RowType =
   | "button"
   | "radio-button"
   | "note"
-  | "text-input";
+  | "text-input"
+  | "date";
 
 export type Card = {
   id: string;
@@ -19,6 +21,7 @@ export type Card = {
     icon?: keyof typeof Ionicons.glyphMap;
     route?: string; // for "link"
     onPress?: () => void; // for "button" & "radio-button"
+    textInputProps?: TextInputProps; // for "text-input"
   }>;
 };
 

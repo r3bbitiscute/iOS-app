@@ -4,17 +4,27 @@ import type { Card } from "../../../types/settings";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Alert, ActivityIndicator } from "react-native";
+import {
+  Alert,
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useTheme } from "../../../theme/ThemeProvider";
 import api from "../../../api/api";
 import NetInfo from "@react-native-community/netinfo";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 export default function Profile() {
   const { t } = useTranslation();
-  const { colors: C } = useTheme();
+  const { colors: C, fonts: F } = useTheme();
 
   const [loading, setLoading] = useState(true);
+  const [showDobPicker, setShowDobPicker] = useState(false);
 
   const [formValues, setFormValues] = useState<{ [key: string]: string }>({});
 
@@ -78,15 +88,15 @@ export default function Profile() {
 
         if (res.status === 200) {
           const body = res.data;
-          
-          if(body.status !== 200) {
-            console.warn("API ERROR@Profile.tsx: ", body.msg)
+
+          if (body.status !== 200) {
+            console.warn("API ERROR@Profile.tsx: ", body.msg);
             await AsyncStorage.removeItem("patientData");
             return;
           }
 
           const p = body.patient;
-          
+
           await AsyncStorage.setItem("patientData", JSON.stringify(p));
           const etag = res.headers?.etag;
           if (etag) await AsyncStorage.setItem("patientETag", etag);
@@ -129,6 +139,29 @@ export default function Profile() {
    */
   const onChangeField = (id: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const parseDob = (value?: string) => {
+    if (!value) return new Date();
+    const parts = value.split("-");
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      if (y && m && d) return new Date(y, m - 1, d);
+    }
+    const fallback = new Date(value);
+    return Number.isNaN(fallback.getTime()) ? new Date() : fallback;
+  };
+
+  const formatDob = (date: Date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const onDobChange = (_event: unknown, date?: Date) => {
+    if (Platform.OS === "android") setShowDobPicker(false);
+    if (date) onChangeField("dob", formatDob(date));
   };
 
   /**
@@ -183,8 +216,19 @@ export default function Profile() {
         sectionLabel: t("userInformation"),
         rows: [
           // { id: "patient-id", type: "text-input", title: "ID *" },
-          { id: "patientName", type: "text-input", title: t("name") + " *" },
-          { id: "dob", type: "text-input", title: t("dateOfBirth") + " *" },
+          {
+            id: "patientName",
+            type: "text-input",
+            title: t("name") + " *",
+            icon: "person-circle-outline",
+          },
+          {
+            id: "dob",
+            type: "date",
+            title: t("dateOfBirth") + " *",
+            icon: "calendar-outline",
+            onPress: () => setShowDobPicker(true),
+          },
         ],
       },
       {
@@ -195,8 +239,20 @@ export default function Profile() {
             id: "contact",
             type: "text-input",
             title: t("contactNumber") + " *",
+            icon: "call",
           },
-          { id: "email", type: "text-input", title: t("email") + " *" },
+          {
+            id: "email",
+            type: "text-input",
+            title: t("email") + " *",
+            icon: "mail",
+            textInputProps: {
+              keyboardType: "email-address",
+              autoCapitalize: "none",
+              autoCorrect: false,
+              textContentType: "emailAddress",
+            },
+          },
         ],
       },
       /*{
@@ -246,6 +302,38 @@ export default function Profile() {
         formValues={formValues}
         onChangeField={onChangeField}
       />
+      {showDobPicker && (
+        <View style={styles.dobPickerContainer}>
+          <DateTimePicker
+            value={parseDob(formValues.dob)}
+            mode="date"
+            display="spinner"
+            maximumDate={new Date()}
+            onChange={onDobChange}
+          />
+          {Platform.OS === "ios" && (
+            <TouchableOpacity
+              style={styles.dobDoneButton}
+              onPress={() => setShowDobPicker(false)}>
+              <Text style={[F.buttonText, { fontSize: 14, color: C.tint }]}>
+                Done
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  dobPickerContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    backgroundColor: "transparent",
+  },
+  dobDoneButton: {
+    alignSelf: "flex-end",
+    paddingTop: 8,
+  },
+});

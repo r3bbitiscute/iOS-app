@@ -26,7 +26,12 @@ export default function SettingsList({
 }: {
   cards: Card[];
   titleFlag?: boolean;
-  ctaFlag?: { enabled: boolean; label?: string; onPress?: () => void };
+  ctaFlag?: {
+    enabled: boolean;
+    label?: string;
+    onPress?: () => void;
+    disabled?: boolean;
+  };
   selectedLanguage?: string;
   formValues?: { [key: string]: string };
   switchValues?: Record<string, boolean>;
@@ -101,6 +106,7 @@ export default function SettingsList({
               ? selectedLanguage === row.id
               : undefined;
             const isForm = row.type === "text-input";
+            const isDate = row.type === "date";
             return (
               <View key={row.id}>
                 <SettingsRow
@@ -118,9 +124,14 @@ export default function SettingsList({
                       ? undefined
                       : row.onPress || (() => onPressRow(row.route))
                   }
-                  textValue={isForm ? formValues?.[row.id] ?? "" : undefined}
+                  textValue={
+                    isForm || isDate ? formValues?.[row.id] ?? "" : undefined
+                  }
                   onChangeText={
                     isForm ? (t) => onChangeField?.(row.id, t) : undefined
+                  }
+                  textInputProps={
+                    isForm || isDate ? row.textInputProps : undefined
                   }
                 />
                 {!isLast && (
@@ -145,10 +156,12 @@ export default function SettingsList({
         <View style={styles.ctaContainer}>
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={ctaFlag.onPress}
+            onPress={ctaFlag.disabled ? undefined : ctaFlag.onPress}
+            disabled={ctaFlag.disabled}
             style={[
               styles.cta,
               { backgroundColor: C.tint },
+              ctaFlag.disabled ? { opacity: 0.5 } : null,
               Platform.select({ android: { elevation: 1.5 } }),
             ]}>
             <Text style={F.buttonText}>{ctaFlag.label}</Text>
